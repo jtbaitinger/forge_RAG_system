@@ -272,7 +272,9 @@ class RAGVectorStore:
         # Set default parameters
         default_params = {
             'similarity_top_k': 5,
-            'response_mode': 'compact'
+            'response_mode': 'compact',
+            'llm': self._get_llm(),  # Use our controlled LLM
+            'embed_model': self._get_embedding_model()  # Use our controlled embedding model
         }
         default_params.update(kwargs)
 
