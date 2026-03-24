@@ -12,7 +12,10 @@
       "Bash(azd auth:*)",
       "Bash(ls:*)",
       "Bash(cd scripts:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(uvicorn src.main:app --reload --host 0.0.0.0 --port 8000)",
+      "Bash(curl -s http://localhost:8000/knowledge)",
+      "Bash(pkill:*)"
     ]
   }
 }

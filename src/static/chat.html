@@ -39,6 +39,19 @@
         .welcome { text-align: center; color: #999; padding: 60px 20px; }
         .welcome h2 { font-size: 24px; color: #333; margin-bottom: 8px; }
         .welcome p { font-size: 14px; margin-bottom: 4px; }
+        .knowledge-panel { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; margin-bottom: 16px; }
+        .knowledge-panel summary { padding: 12px 16px; cursor: pointer; font-weight: 600; color: #495057; border-bottom: 1px solid #e9ecef; }
+        .knowledge-panel summary:hover { background: #e9ecef; }
+        .knowledge-content { padding: 16px; }
+        .knowledge-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .stat-box { text-align: center; padding: 8px; background: white; border-radius: 6px; border: 1px solid #dee2e6; }
+        .stat-number { font-size: 20px; font-weight: 700; color: #3498db; }
+        .stat-label { font-size: 11px; color: #6c757d; text-transform: uppercase; }
+        .topics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+        .topic-card { background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; }
+        .topic-card h4 { margin: 0 0 6px 0; color: #495057; font-size: 14px; }
+        .topic-samples { font-size: 12px; color: #6c757d; line-height: 1.4; }
+        .topic-samples li { margin: 3px 0; word-wrap: break-word; }
     </style>
 </head>
 <body>
@@ -55,6 +68,15 @@
         <div class="settings">
             <label>Sources to retrieve: <input type="number" id="top-k" value="3" min="1" max="10"></label>
         </div>
+
+        <details class="knowledge-panel" id="knowledge-panel" style="display: none;">
+            <summary>📚 Knowledge Base Overview</summary>
+            <div class="knowledge-content" id="knowledge-content">
+                <div class="knowledge-stats" id="knowledge-stats"></div>
+                <div class="topics-grid" id="topics-grid"></div>
+            </div>
+        </details>
+
         <div class="chat-area" id="chat-area">
             <div class="welcome" id="welcome">
                 <h2>Ask me anything about Wikipedia</h2>
@@ -74,6 +96,8 @@
         const sendBtn = document.getElementById('send-btn');
         const statusBadge = document.getElementById('status-badge');
         const welcome = document.getElementById('welcome');
+        const knowledgePanel = document.getElementById('knowledge-panel');
+        let knowledgeLoaded = false;  // Track if we've already loaded knowledge
 
         queryInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !sendBtn.disabled) sendQuery(); });
 
@@ -85,13 +109,85 @@
                     statusBadge.textContent = 'ready';
                     statusBadge.classList.add('ready');
                     sendBtn.disabled = false;
+
+                    // Only load knowledge once when system becomes ready
+                    if (!knowledgeLoaded) {
+                        loadKnowledge();
+                        knowledgeLoaded = true;
+                    }
                 } else {
                     statusBadge.textContent = 'no data loaded';
                     sendBtn.disabled = true;
+                    knowledgePanel.style.display = 'none';
+                    knowledgeLoaded = false;  // Reset if system goes offline
                 }
             } catch {
                 statusBadge.textContent = 'offline';
+                knowledgePanel.style.display = 'none';
+                knowledgeLoaded = false;
             }
+        }
+
+        async function loadKnowledge() {
+            try {
+                const res = await fetch('/knowledge');
+                if (!res.ok) return;
+
+                const data = await res.json();
+                displayKnowledge(data);
+                knowledgePanel.style.display = 'block';
+            } catch (e) {
+                console.warn('Failed to load knowledge overview:', e);
+            }
+        }
+
+        function displayKnowledge(data) {
+            const statsContainer = document.getElementById('knowledge-stats');
+            const topicsContainer = document.getElementById('topics-grid');
+
+            // Display stats
+            statsContainer.innerHTML = `
+                <div class="stat-box">
+                    <div class="stat-number">${data.total_documents || 0}</div>
+                    <div class="stat-label">Total Chunks</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">${data.unique_titles_sampled || 0}</div>
+                    <div class="stat-label">Unique Topics</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">${Object.keys(data.topics || {}).length}</div>
+                    <div class="stat-label">Categories</div>
+                </div>
+            `;
+
+            // Display topics
+            let topicsHtml = '';
+            for (const [category, info] of Object.entries(data.topics || {})) {
+                const samples = info.sample_titles.slice(0, 5);
+                topicsHtml += `
+                    <div class="topic-card">
+                        <h4>${escapeHtml(category)}</h4>
+                        <p style="font-size:12px; margin:4px 0; color:#28a745;">${info.count} items sampled</p>
+                        <ul class="topic-samples">
+                            ${samples.map(title => `<li>${escapeHtml(title.length > 80 ? title.substring(0, 80) + '...' : title)}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            if (data.sample_titles && data.sample_titles.length > 0) {
+                topicsHtml += `
+                    <div class="topic-card">
+                        <h4>Sample Topics</h4>
+                        <ul class="topic-samples">
+                            ${data.sample_titles.slice(0, 10).map(title => `<li>${escapeHtml(title.length > 90 ? title.substring(0, 90) + '...' : title)}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            topicsContainer.innerHTML = topicsHtml;
         }
 
         function addMessage(role, html) {
@@ -161,8 +257,26 @@
             return div.innerHTML;
         }
 
+        // Check status on page load
         checkStatus();
-        setInterval(checkStatus, 10000);
+
+        // Option 1: No continuous polling (simplest)
+        // Uncomment this line if you want to eliminate all polling:
+        // (Status will only update on page refresh)
+
+        // Option 2: Minimal polling (current)
+        // Only poll a few times during startup, then stop
+        let pollCount = 0;
+        const pollInterval = setInterval(() => {
+            pollCount++;
+            checkStatus();
+
+            // Stop polling after system is ready OR after 5 attempts
+            if ((statusBadge.classList.contains('ready') && knowledgeLoaded) || pollCount >= 5) {
+                clearInterval(pollInterval);
+                console.log('Status polling stopped - system ready or max attempts reached');
+            }
+        }, 5000); // Every 5 seconds for up to 25 seconds
     </script>
 </body>
 </html>

@@ -38,9 +38,11 @@ pytest tests/
 
 ### API Server
 ```bash
-# Start FastAPI server (when implemented)
-# Command will be available after implementation
-uvicorn main:app --reload
+# Start FastAPI server
+uvicorn src.main:app --reload
+
+# Or with explicit Python path
+PYTHONPATH=. uvicorn src.main:app --reload
 ```
 
 ## Architecture & Core Principles
@@ -86,7 +88,12 @@ llm = AzureOpenAI(model="gpt-4o", ...)  # This violates model isolation
 ## Project Structure
 
 ### Source Code
+- `src/main.py` - FastAPI application with REST endpoints and chat UI
+- `src/data_loader.py` - Wikipedia data loading with AI-powered title generation
+- `src/embedding_generator.py` - Embedding generation using Azure OpenAI
+- `src/vector_store.py` - Vector database operations and similarity search
 - `src/llamaindex_models.py` - **Model isolation layer (USE THIS FOR ALL MODEL ACCESS)**
+- `src/static/chat.html` - Interactive web chat UI with knowledge base overview
 - `src/ailab/utils/azure.py` - Azure authentication utilities
 - `src/ailab/` - AI Lab utilities package
 

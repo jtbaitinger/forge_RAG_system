@@ -39,6 +39,7 @@ class IngestRequest(BaseModel):
     chunk_size: int = Field(default=1000, description="Text chunk size for embedding", gt=0)
     batch_size: int = Field(default=5, description="Batch size for embedding generation", gt=0)
     overwrite: bool = Field(default=False, description="Overwrite existing index")
+    use_ai_titles: bool = Field(default=False, description="Use AI (GPT-4o) to generate titles from passage content")
 
     @field_validator('document_limit')
     @classmethod
@@ -161,7 +162,8 @@ async def ingest_data(request: IngestRequest, background_tasks: BackgroundTasks)
         request.document_limit,
         request.chunk_size,
         request.batch_size,
-        request.overwrite
+        request.overwrite,
+        request.use_ai_titles
     )
 
     return IngestResponse(
@@ -185,14 +187,17 @@ async def get_ingestion_status():
 async def _ingest_data_background(document_limit: Optional[int],
                                  chunk_size: int,
                                  batch_size: int,
-                                 overwrite: bool):
+                                 overwrite: bool,
+                                 use_ai_titles: bool):
     """Background task for data ingestion."""
     try:
         logger.info(f"Starting background ingestion: limit={document_limit}")
 
         # Load documents
         app_state["ingestion_progress"]["step"] = "loading_documents"
-        documents = load_wikipedia_documents(limit=document_limit)
+        if use_ai_titles:
+            app_state["ingestion_progress"]["step"] = "loading_documents_with_ai_titles"
+        documents = load_wikipedia_documents(limit=document_limit, use_ai_titles=use_ai_titles)
 
         app_state["ingestion_progress"]["documents_loaded"] = len(documents)
         logger.info(f"Loaded {len(documents)} documents")
@@ -325,3 +330,58 @@ async def get_system_info():
         info.update(index_info)
 
     return info
+
+
+@app.get("/knowledge")
+async def get_knowledge_overview():
+    """Get overview of knowledge base topics and content."""
+    if not app_state["vector_store"]:
+        raise HTTPException(status_code=404, detail="No vector store available. Run ingestion first.")
+
+    try:
+        # Sample some documents to understand the knowledge base
+        sample_results = app_state["vector_store"].query_similar_documents(
+            query="sample",  # Generic query to get diverse results
+            top_k=50,  # Get more samples for analysis
+            similarity_threshold=0.0  # Accept all results
+        )
+
+        if not sample_results:
+            return {"topics": [], "total_documents": 0, "sample_titles": []}
+
+        # Extract topics from metadata
+        topics = {}
+        titles = set()
+
+        for result in sample_results:
+            metadata = result.get("metadata", {})
+            title = metadata.get("title", "Unknown")
+            source = metadata.get("source", "Unknown")
+
+            titles.add(title)
+
+            # Group by source or try to infer topic categories
+            if source not in topics:
+                topics[source] = {
+                    "count": 0,
+                    "sample_titles": []
+                }
+
+            topics[source]["count"] += 1
+            if len(topics[source]["sample_titles"]) < 5:
+                topics[source]["sample_titles"].append(title)
+
+        # Get total count from vector store info
+        index_info = app_state["vector_store"].get_index_info()
+        total_nodes = index_info.get("total_nodes", len(sample_results))
+
+        return {
+            "topics": topics,
+            "total_documents": total_nodes,
+            "unique_titles_sampled": len(titles),
+            "sample_titles": sorted(list(titles))[:20]  # First 20 alphabetically
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get knowledge overview: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to analyze knowledge base: {str(e)}")
