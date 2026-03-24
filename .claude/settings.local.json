@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv venv:*)",
+      "Bash(where uv:*)",
+      "Bash(pip --version)",
+      "Bash(uv:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(source:*)",
+      "Bash(.venv/Scripts/activate.bat)",
+      "Bash(azd auth:*)"
+    ]
+  }
+}
