@@ -9,7 +9,10 @@
       "Bash(python:*)",
       "Bash(source:*)",
       "Bash(.venv/Scripts/activate.bat)",
-      "Bash(azd auth:*)"
+      "Bash(azd auth:*)",
+      "Bash(ls:*)",
+      "Bash(cd scripts:*)",
+      "Bash(cd:*)"
     ]
   }
 }

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikipedia RAG Chat</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
+        header { background: #1a1a2e; color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+        header h1 { font-size: 20px; font-weight: 600; }
+        header .status { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: #e74c3c; }
+        header .status.ready { background: #27ae60; }
+        nav { background: #16213e; padding: 8px 24px; display: flex; gap: 16px; }
+        nav a { color: #aaa; text-decoration: none; font-size: 13px; padding: 6px 0; border-bottom: 2px solid transparent; }
+        nav a.active { color: #fff; border-bottom-color: #3498db; }
+        nav a:hover { color: #fff; }
+        .container { flex: 1; display: flex; flex-direction: column; max-width: 900px; width: 100%; margin: 0 auto; padding: 20px; overflow: hidden; }
+        .chat-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-bottom: 16px; }
+        .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; font-size: 14px; }
+        .message.user { align-self: flex-end; background: #3498db; color: #fff; border-bottom-right-radius: 4px; }
+        .message.assistant { align-self: flex-start; background: #fff; color: #333; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .message.assistant .answer { margin-bottom: 10px; }
+        .sources { border-top: 1px solid #eee; padding-top: 8px; margin-top: 4px; }
+        .sources summary { font-size: 12px; color: #888; cursor: pointer; }
+        .source-item { font-size: 12px; color: #666; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+        .source-item .score { color: #3498db; font-weight: 600; }
+        .message.error { align-self: flex-start; background: #ffeaea; color: #c0392b; }
+        .message.thinking { align-self: flex-start; background: #fff; color: #999; font-style: italic; }
+        .input-area { display: flex; gap: 8px; padding-top: 12px; border-top: 1px solid #ddd; }
+        .input-area input { flex: 1; padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+        .input-area input:focus { border-color: #3498db; }
+        .input-area button { padding: 12px 24px; background: #3498db; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+        .input-area button:hover { background: #2980b9; }
+        .input-area button:disabled { background: #bbb; cursor: not-allowed; }
+        .settings { display: flex; gap: 16px; padding: 8px 0; align-items: center; font-size: 12px; color: #888; }
+        .settings label { display: flex; align-items: center; gap: 4px; }
+        .settings input[type="number"] { width: 50px; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+        .welcome { text-align: center; color: #999; padding: 60px 20px; }
+        .welcome h2 { font-size: 24px; color: #333; margin-bottom: 8px; }
+        .welcome p { font-size: 14px; margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Wikipedia RAG Chat</h1>
+        <span class="status" id="status-badge">checking...</span>
+    </header>
+    <nav>
+        <a href="/docs" >API Docs</a>
+        <a href="/chat" class="active">Chat</a>
+    </nav>
+
+    <div class="container">
+        <div class="settings">
+            <label>Sources to retrieve: <input type="number" id="top-k" value="3" min="1" max="10"></label>
+        </div>
+        <div class="chat-area" id="chat-area">
+            <div class="welcome" id="welcome">
+                <h2>Ask me anything about Wikipedia</h2>
+                <p>This system retrieves relevant Wikipedia passages and uses GPT-4o to answer.</p>
+                <p style="margin-top:12px; font-size:13px; color:#aaa;">Try: "What is Uruguay?" or "Tell me about Montevideo"</p>
+            </div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="query-input" placeholder="Ask a question..." autocomplete="off">
+            <button id="send-btn" onclick="sendQuery()">Ask</button>
+        </div>
+    </div>
+
+    <script>
+        const chatArea = document.getElementById('chat-area');
+        const queryInput = document.getElementById('query-input');
+        const sendBtn = document.getElementById('send-btn');
+        const statusBadge = document.getElementById('status-badge');
+        const welcome = document.getElementById('welcome');
+
+        queryInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !sendBtn.disabled) sendQuery(); });
+
+        async function checkStatus() {
+            try {
+                const res = await fetch('/info');
+                const data = await res.json();
+                if (data.vector_store_available) {
+                    statusBadge.textContent = 'ready';
+                    statusBadge.classList.add('ready');
+                    sendBtn.disabled = false;
+                } else {
+                    statusBadge.textContent = 'no data loaded';
+                    sendBtn.disabled = true;
+                }
+            } catch {
+                statusBadge.textContent = 'offline';
+            }
+        }
+
+        function addMessage(role, html) {
+            if (welcome) welcome.style.display = 'none';
+            const div = document.createElement('div');
+            div.className = 'message ' + role;
+            div.innerHTML = html;
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+            return div;
+        }
+
+        async function sendQuery() {
+            const query = queryInput.value.trim();
+            if (!query) return;
+
+            const topK = parseInt(document.getElementById('top-k').value) || 3;
+
+            addMessage('user', escapeHtml(query));
+            queryInput.value = '';
+            sendBtn.disabled = true;
+
+            const thinkingMsg = addMessage('thinking', 'Searching documents and generating answer...');
+
+            try {
+                const res = await fetch('/rag', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, top_k: topK })
+                });
+
+                thinkingMsg.remove();
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    addMessage('error', 'Error: ' + escapeHtml(err.detail || 'Unknown error'));
+                    sendBtn.disabled = false;
+                    return;
+                }
+
+                const data = await res.json();
+
+                let html = '<div class="answer">' + escapeHtml(data.answer) + '</div>';
+
+                if (data.sources && data.sources.length > 0) {
+                    html += '<details class="sources"><summary>' + data.sources.length + ' source(s) used</summary>';
+                    for (const src of data.sources) {
+                        const score = src.similarity_score ? src.similarity_score.toFixed(3) : 'N/A';
+                        html += '<div class="source-item"><span class="score">' + score + '</span> ' + escapeHtml(src.text.substring(0, 200)) + '...</div>';
+                    }
+                    html += '</details>';
+                }
+
+                addMessage('assistant', html);
+            } catch (e) {
+                thinkingMsg.remove();
+                addMessage('error', 'Network error: ' + escapeHtml(e.message));
+            }
+
+            sendBtn.disabled = false;
+            queryInput.focus();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        checkStatus();
+        setInterval(checkStatus, 10000);
+    </script>
+</body>
+</html>

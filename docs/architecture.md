@@ -53,3 +53,23 @@ graph LR
 ```
 
 This architecture provides significant advantages in transparency, modularity, and extensibility while minimizing custom code development.
+
+## Source Code Modules
+
+| Module | File | Responsibility |
+|--------|------|---------------|
+| **Data Loader** | `src/data_loader.py` | Downloads Wikipedia passages from HuggingFace, converts to LlamaIndex Document objects |
+| **Embedding Generator** | `src/embedding_generator.py` | Splits documents into text chunks, generates 3072-dim embeddings via Azure OpenAI |
+| **Vector Store** | `src/vector_store.py` | Creates/persists/loads the vector index, performs similarity search, provides query engine for RAG |
+| **Model Isolation** | `src/llamaindex_models.py` | Controlled factory for all Azure OpenAI models (GPT-4o, text-embedding-3-large) |
+| **Azure Auth** | `src/ailab/utils/azure.py` | Retrieves bearer tokens via DefaultAzureCredential for AI Lab scope |
+| **FastAPI App** | `src/main.py` | HTTP endpoints for ingestion, query, RAG generation, chat UI, health checks |
+
+## Key Design Decisions
+
+- **Model isolation**: No code outside `llamaindex_models.py` may instantiate Azure OpenAI models directly
+- **Simple pipeline**: Each module does one thing and passes data to the next via plain Python objects
+- **Local vector store**: LlamaIndex's built-in `SimpleVectorStore` persists to JSON on disk — no external database required
+- **Background ingestion**: Embedding generation runs in a FastAPI background task so the API stays responsive
+
+For a detailed walkthrough of how data flows through the system, see [how_it_works.md](how_it_works.md).

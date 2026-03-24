@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 # Add src to path to import our modules
-src_path = Path(__file__).parent / "src"
+src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 from data_loader import load_wikipedia_documents

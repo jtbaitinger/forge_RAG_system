@@ -1,55 +1,26 @@
-# AI Lab Model Testing Guide
+# Testing
 
-This document explains the testing system for the AI Lab authentication and model access system.
+See [testing_guide.md](testing_guide.md) for the full testing guide.
 
-## 📊 Quick Overview
+Quick reference:
 
-- **XX total tests** across X test files
-- **Default**: `uv run pytest` 
+```bash
+# Install test dependencies
+uv sync --group dev
 
-## 🏗️ Test Organization
+# Run all tests
+python scripts/run_tests.py
 
-Tests run in fail-fast order with numbered prefixes:
+# Run specific categories
+python scripts/run_tests.py --category unit -v
+python scripts/run_tests.py --category api -v
 
-- `test_00_*` - **Smoke Tests**: 
-- `test_10_*` - **Auth Tests**: 
-- `test_20_*` - **Basic Tests**: 
-- `test_30_*` - **Model Tests**: 
-- `test_50_*` - **Integration Tests**: 
+# Run individual test files
+pytest tests/test_data_loader.py -v
+pytest tests/test_api.py -v
+```
 
-## ⚡ Test Tiers
-
-
-
-## 🧪 What Gets Tested
-
-
-
-## 🚀 Common Commands
-
-
-
-## 🔧 When Tests Fail
-
-Tests provide specific guidance based on failure type:
-
-**Environment failures** → Check Azure auth: `azd auth login --scope api://ailab/Model.Access`
-
-**Authentication failures** → Refresh login, verify permissions
-
-**Model access failures** → Check MODEL_REGISTRY, verify deployments
-
-**Integration failures** → Check quotas, API versions, network connectivity
-
-## ✅ What's Covered
-
-- ✅ **Azure authentication** with controlled token providers
-- ✅ **Model isolation** preventing unauthorized access  
-- ✅ **LlamaIndex integration** with chat, embeddings, vector stores
-- ✅ **Real API calls** validating end-to-end functionality
-- ✅ **Example patterns** ensuring documentation accuracy
-- ✅ **Security controls** blocking unauthorized models
-- ✅ **Developer experience** with clear error messages
-- ✅ **Clean output** with dependency warnings filtered
-
-The default `uv run pytest` gives fast feedback for development, while full tests ensure comprehensive validation before releases.
+All tests require Azure authentication:
+```bash
+azd auth login --scope api://ailab/Model.Access
+```

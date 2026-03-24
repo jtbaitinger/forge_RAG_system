@@ -1,3 +1,10 @@
 .DS_Store
 .venv/
 .vscode/
+__pycache__/
+*.pyc
+.pytest_cache/
+vector_storage/
+notebook_vector_storage/
+demo_vector_storage/
+test_vector_storage/
